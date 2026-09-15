@@ -30,7 +30,7 @@ sends the new state to a second ESP32 over **ESP-NOW**.
 
 | file | content |
 |------|---------|
-| `crawlerlichtanlage_lucas.ino` | boot sequence (splash, calibration, grid) and the touch state machine |
+| `crawlerlichtanlage.ino` | boot sequence (splash, calibration, grid) and the touch state machine |
 | `config.h` | **all tunables**: rotation, grid size, timings, colours, receiver MAC, protocol id |
 | `lights.h/.cpp` | `LightMode` (0/1/2) and `LightPanel` = `std::vector<Light>` with mode cycling |
 | `ui.h/.cpp` | resolution independent 3x4 key grid, per key font fitting, partial repaint |
