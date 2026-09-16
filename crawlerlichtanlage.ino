@@ -1,5 +1,5 @@
 /*
- * crawlerlichtanlage_lucas - LF-RC wireless light controller (sender)
+ * crawlerlichtanlage - LF-RC wireless light controller (sender)
  *
  * Boot sequence
  *   1. The frame file system is mounted (LittleFS, or SPIFFS when the frame was
