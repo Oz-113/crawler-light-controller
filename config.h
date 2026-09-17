@@ -30,7 +30,7 @@
 
 // -------------------------------------------------------------- touch / cal ----
 #define TOUCH_THRESHOLD        600            // XPT2046 z (pressure) threshold
-#define TOUCH_LONGPRESS_MS     3000UL         // hold longer than this -> touch calibration
+#define TOUCH_LONGPRESS_MS     1000UL         // hold longer than this -> touch calibration
 #define TOUCH_SETTLE_MS        60             // ignore contacts shorter than this (debounce)
 #define CAL_PREFS_NAMESPACE    "lfrc"         // NVS namespace for the calibration data
 #define CAL_PREFS_KEY          "touchcal"
