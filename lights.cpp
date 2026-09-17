@@ -31,7 +31,13 @@ LightMode LightPanel::mode(uint8_t id) const {
 
 bool LightPanel::setMode(uint8_t id, LightMode mode) {
   if (id >= _lights.size()) return false;
-  if (mode >= LIGHT_MODE_COUNT) return false;
+
+  if(id==0){
+    
+  if (mode >= LIGHT_MODE_COUNT) return false;  
+    }else{
+  if (mode >= LIGHT_MODE_BIN_COUNT) return false;
+    }
   if (_lights[id].mode == mode) return false;
   _lights[id].mode = mode;
   return true;
