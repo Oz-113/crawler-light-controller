@@ -1,5 +1,5 @@
 /*
- * crawlerlichtanlage_lucas - LF-RC wireless light controller (sender)
+ * crawlerlichtanlage - LF-RC wireless light controller (sender)
  *
  * Boot sequence
  *   1. The frame file system is mounted (LittleFS, or SPIFFS when the frame was
@@ -132,24 +132,59 @@ static void handleTouch() {
     }
 
     if (held >= TOUCH_LONGPRESS_MS) {
+
+      Serial.println("longpress");
+    if(released==0){
+        if(panel.mode(released) == 2){
+      LightMode mode = panel.cycle(released);
+      
+      Serial.println("panelmode was 2");
+      }else{
+     LightMode mode = panel.cycle(released);
+     mode = panel.cycle(released);
+     
+      Serial.println("panelmode was 0");
+      }
+      ui.drawCell(released);
+
+  bool queued = lightLink.sendPanel(panel, released);
+    
+    }else{
       Serial.println(F("Long press - recalibrating the touch screen"));
       touchCal.run(tft);
       s_ignoreUntilRelease = true;
       tft.fillScreen(COL_BACKGROUND);
       ui.drawAll();
-    } else if (held >= TOUCH_SETTLE_MS && released >= 0) {
+      }
+    } 
+    
+    else if (held >= TOUCH_SETTLE_MS && released >= 0) {
       onLightTouched((uint8_t)released);
+    
     }
   }
 }
 
 // A key was tapped: cycle its mode, repaint it and tell the other ESP32.
 static void onLightTouched(uint8_t id) {
-  LightMode mode = panel.cycle(id);
+  if(id==0){
+    if(panel.mode(id) == 1){
+      LightMode mode = panel.cycle(id);
+     mode = panel.cycle(id); 
+      }else{
+     LightMode mode = panel.cycle(id);
+     
+     
+      }
+      
+    }else{
+     LightMode mode = panel.cycle(id);
+    }
   ui.drawCell(id);
 
   bool queued = lightLink.sendPanel(panel, id);
-  Serial.printf("Light %u -> mode %u (%s)\n",
+ /* Serial.printf("Light %u -> mode %u (%s)\n",
                 (unsigned)(id + 1), (unsigned)mode,
                 queued ? "packet queued" : "no receiver configured");
+*/
 }

@@ -30,7 +30,7 @@
 
 // -------------------------------------------------------------- touch / cal ----
 #define TOUCH_THRESHOLD        600            // XPT2046 z (pressure) threshold
-#define TOUCH_LONGPRESS_MS     3000UL         // hold longer than this -> touch calibration
+#define TOUCH_LONGPRESS_MS     1000UL         // hold longer than this -> touch calibration
 #define TOUCH_SETTLE_MS        60             // ignore contacts shorter than this (debounce)
 #define CAL_PREFS_NAMESPACE    "lfrc"         // NVS namespace for the calibration data
 #define CAL_PREFS_KEY          "touchcal"
@@ -52,9 +52,9 @@
 
 #define COL_OFF_FILL           0x1082         // mode 0 (0b00) off          - dark grey
 #define COL_OFF_TEXT           0x7BEF
-#define COL_HALF_FILL          0xFD20         // mode 1 (0b01) half bright  - orange
+#define COL_HALF_FILL          0xFFFF         // mode 1 (0b01) half bright  - WHITE
 #define COL_HALF_TEXT          0x0000
-#define COL_FULL_FILL          0xFFE0         // mode 2 (0b10) full bright  - yellow
+#define COL_FULL_FILL          0x07E0         // mode 2 (0b10) full bright  - GREEN
 #define COL_FULL_TEXT          0x0000
 
 #define COL_CAL_FG             0xF81F         // calibration arrows

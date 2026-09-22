@@ -31,17 +31,40 @@ LightMode LightPanel::mode(uint8_t id) const {
 
 bool LightPanel::setMode(uint8_t id, LightMode mode) {
   if (id >= _lights.size()) return false;
-  if (mode >= LIGHT_MODE_COUNT) return false;
+
+  if(id==0){
+    
+  if (mode >= LIGHT_MODE_COUNT) return false;  
+    }else{
+  if (mode >= LIGHT_MODE_BIN_COUNT) return false;
+    }
   if (_lights[id].mode == mode) return false;
   _lights[id].mode = mode;
   return true;
 }
 
 LightMode LightPanel::cycle(uint8_t id) {
+
+  
   if (id >= _lights.size()) return LIGHT_OFF;
-  uint8_t next = ((uint8_t)_lights[id].mode + 1) % LIGHT_MODE_COUNT;
+  
+  if(id==0){
+    
+    uint8_t next = ((uint8_t)_lights[id].mode + 1) % LIGHT_MODE_COUNT;
+  
   _lights[id].mode = (LightMode)next;
-  return _lights[id].mode;
+  
+ return _lights[id].mode;
+  }else{
+    
+  
+  uint8_t next = ((uint8_t)_lights[id].mode + 1) % LIGHT_MODE_BIN_COUNT;
+
+  
+  _lights[id].mode = (LightMode)next;
+  
+ return _lights[id].mode;
+  }
 }
 
 void LightPanel::setAll(LightMode mode) {
