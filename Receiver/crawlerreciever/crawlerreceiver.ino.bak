@@ -1,0 +1,104 @@
+#include "config.h"
+#include <WiFi.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+
+static uint8_t         s_senderMac[6] = SENDER_MAC;
+EspNowLink::EspNowLink() {
+  _started           = false;
+  _warnedNoSender  = false;
+}
+struct LightCommandPacket {
+  uint8_t protocol;   // 0xA5 == LINK_PROTOCOL_ID
+  uint8_t count;      // number of valid mode[] entries
+  uint8_t changed;    // light id that was touched, 0xFF = full refresh
+  uint8_t reserved;   // 0
+  uint8_t mode[12];   // 2 bit mode per light: 0 off, 1 half, 2 full
+};
+class EspNowLink {
+ public:
+  EspNowLink();
+
+  // WiFi station mode + esp_now_init() + (optional) peer registration.
+  bool begin();
+
+  // True when a receiver MAC address was configured in config.h.
+  bool hasSender() const;
+
+  // Changed LED state of every light; 0xFF in LightPanel terms, no packet
+  // without a receiver is sent (it is only reported on the serial port).
+  bool sendPanel(const LightPanel& panel, uint8_t changedId);
+
+  // 0 = unknown, 1 = last packet acknowledged, 2 = last packet failed
+  uint8_t lastPacketStatus() const;
+
+  uint32_t packetsSent() const;
+  uint32_t packetsFailed() const;
+
+ private:
+  bool _started;
+  bool _warnedNoSender;
+};
+
+bool EspNowLink::hasSender() const {
+  for (uint8_t i = 0; i < 6; i++) {
+    if (s_senderMac[i] != 0x00) return true;
+  }
+  return false;
+}
+bool EspNowLink::begin() {
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();                       // ESP-NOW does not need a connection
+
+  // Both boards have to be on the same channel. A station that never connects
+  // keeps the channel we set here.
+  esp_err_t chErr = esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+  if (chErr != ESP_OK) {
+    Serial.printf("Could not set WiFi channel %u (%d)\n", (unsigned)ESPNOW_CHANNEL, (int)chErr);
+  }
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("esp_now_init() failed");
+    _started = false;
+    return false;
+  }
+  _started = true;
+
+  esp_now_register_send_cb(lfOnDataSent);
+
+  if (!hasReceiver()) {
+    Serial.println("No receiver MAC configured in config.h - packets are only logged.");
+    return true;
+  }
+
+  esp_now_peer_info_t peer;
+  memset(&peer, 0, sizeof(peer));
+  memcpy(peer.peer_addr, s_senderMac, 6);
+  peer.channel = ESPNOW_CHANNEL;
+  peer.encrypt = false;
+  peer.ifidx   = WIFI_IF_STA;
+
+  if (esp_now_add_peer(&peer) != ESP_OK) {
+    Serial.println("esp_now_add_peer() failed");
+    return false;
+  }
+
+  Serial.print("ESP-NOW peer: ");
+  for (uint8_t i = 0; i < 6; i++) {
+    Serial.printf("%02X%s", s_senderMac[i], (i < 5) ? ":" : "\n");
+  }
+  return true;
+}
+
+
+uint8_t EspNowLink::lastPacketStatus() const {
+  return s_lastStatus;
+}
+
+uint32_t EspNowLink::packetsSent() const {
+  return s_sent;
+}
+
+uint32_t EspNowLink::packetsFailed() const {
+  return s_failed;
+}
