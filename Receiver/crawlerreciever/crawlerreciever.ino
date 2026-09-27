@@ -7,7 +7,7 @@
  */
 
 #include "config.h"
-
+#include <Servo.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -17,19 +17,27 @@ struct LightCommandPacket {
   uint8_t protocol;   // LINK_PROTOCOL_ID
   uint8_t count;      // number of valid mode[] entries
   uint8_t changed;    // light id that was touched, 0xFF = full refresh
+  bool seilwinde;   // 0 = off, 1 = on
   uint8_t reserved;   // 0
   uint8_t mode[LIGHT_COUNT];
 };
-const int gpio[] = 
+const int gpio[LIGHT_COUNT] = 
 {
   LIGHT_OUTPUT_1, LIGHT_OUTPUT_2, LIGHT_OUTPUT_3, LIGHT_OUTPUT_4,
   LIGHT_OUTPUT_5, LIGHT_OUTPUT_6, LIGHT_OUTPUT_7, LIGHT_OUTPUT_8,
   LIGHT_OUTPUT_9, LIGHT_OUTPUT_10, LIGHT_OUTPUT_11, LIGHT_OUTPUT_12,
-
-  SEILWINDE_OUTPUT_13
-
-
+  
+  SEILWINDE_OUTPUT_13,
+  SEILWINDE_OUTPUT_14, 
+  
+  SERVO_OUTPUT_15
+  
+  
 }
+
+    // Servo control
+    static Servo myServo;
+    myServo.attach(gpio[id]);
 
 static_assert(sizeof(LightCommandPacket) == 4 + LIGHT_COUNT,
               "LightCommandPacket has to stay identical to the sender");
@@ -69,13 +77,36 @@ class EspNowReceiver {
 static uint8_t s_lightMode[LIGHT_COUNT];
 
 void lightOutputBegin(uint8_t count) {
-  for (uint8_t i = 0; i < LIGHT_COUNT; i++) s_lightMode[i] = MODE_OFF;
-  Serial.printf("lightOutputBegin(%u) is still the stub\n", (unsigned)count);
+  for (uint8_t i = 0; i < LIGHT_COUNT; i++) {
+    pinMode(gpio[i], OUTPUT);
+    s_lightMode[i] = MODE_OFF;
+    digitalWrite(gpio[i], MODE_OFF);
+  }
+    Serial.printf("lightOutputBegin(%u) is still the stub\n", (unsigned)count);
 }
 
 void lightOutputSet(uint8_t id, uint8_t mode) {
   if (id >= LIGHT_COUNT) return;
   s_lightMode[id] = mode;
+
+  switch (id) {
+    case 12: // Seilwinde output
+      digitalWrite(gpio[id], mode);
+      digitalWrite(gpio[id + 1], !mode); // also set the second output for Seilwinde
+      break;
+    case 13: // Servo output
+      if (mode == MODE_FULL) {
+        myServo.write(SERVO_OFFEN); // Move servo to 90 degrees
+      } else {
+        myServo.write(SERVO_GESCHLOSSEN); // Move servo to 0 degrees
+      }
+      break;
+    default:
+      digitalWrite(gpio[id], mode);
+      break;
+    break;
+  }
+
 }
 
 void lightOutputsOff() {
