@@ -20,6 +20,16 @@ struct LightCommandPacket {
   uint8_t reserved;   // 0
   uint8_t mode[LIGHT_COUNT];
 };
+const int gpio[] = 
+{
+  LIGHT_OUTPUT_1, LIGHT_OUTPUT_2, LIGHT_OUTPUT_3, LIGHT_OUTPUT_4,
+  LIGHT_OUTPUT_5, LIGHT_OUTPUT_6, LIGHT_OUTPUT_7, LIGHT_OUTPUT_8,
+  LIGHT_OUTPUT_9, LIGHT_OUTPUT_10, LIGHT_OUTPUT_11, LIGHT_OUTPUT_12,
+
+  SEILWINDE_OUTPUT_13
+
+
+}
 
 static_assert(sizeof(LightCommandPacket) == 4 + LIGHT_COUNT,
               "LightCommandPacket has to stay identical to the sender");
