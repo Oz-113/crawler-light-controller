@@ -3,7 +3,7 @@
 #define ESPNOW_CHANNEL         1              // both ESP32 must sit on the same channel
 #define LINK_PROTOCOL_ID       0xA5           // receiver checks this first byte
 
-#define LIGHT_COUNT            13             // 3 x 4 keys on the sender side
+#define LIGHT_COUNT            15             // 3 x 4 keys on the sender side
 #define LINK_TIMEOUT_MS        10000UL        // no packet for this long -> outputs off
 
 #define MODE_OFF               0
@@ -29,3 +29,6 @@
 #define LIGHT_OUTPUT_12        23             // GPIO pin for light 12
 
 #define SEILWINDE_OUTPUT_13    25             // GPIO pin for Seilwinde output 13
+#define SEILWINDE_OUTPUT_14    26             // GPIO pin for Seilwinde output 14
+
+#define SERVO_OUTPUT_15        27             // GPIO pin for Servo output 15

@@ -22,6 +22,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <TFT_eSPI.h>
+uint8_t seilwindeState = 0; // 0 = off, 1 = right, 2 = left
 
 #include "config.h"
 #include "lights.h"
@@ -32,7 +33,6 @@
 
 TFT_eSPI tft = TFT_eSPI();
 
-uint8_t seilwindeState = 0; // 0 = off, 1 = right, 2 = left
 
 LightPanel       panel;
 Ui               ui;
@@ -113,19 +113,7 @@ seilwindeState = 1; // Set state to right
   } else {
     seilwindeState = 0; // Set state to off
     
-    if (!_started || !hasReceiver()) {
-    if (!_warnedNoReceiver) {
-      _warnedNoReceiver = true;
-      Serial.println("Packet not sent: put the receiver MAC into RECEIVER_MAC in config.h.");
-    }
-    return false;
-  }
 
-  esp_err_t result = esp_now_send(s_receiverMac, (uint8_t*)&pkt, sizeof(pkt));
-  if (result != ESP_OK) {
-    Serial.printf("esp_now_send() error %d\n", (int)result);
-    return false;
-  }
   }
 
   

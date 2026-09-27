@@ -7,7 +7,7 @@
  */
 
 #include "config.h"
-#include <Servo.h>
+#include <ESP32Servo.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
