@@ -22,6 +22,7 @@ struct LightCommandPacket {
   uint8_t protocol;
   uint8_t count;
   uint8_t changed;
+  uint8_t seilwinde;   // 0 off 1 right 2 left
   uint8_t reserved;
   uint8_t mode[LIGHT_COUNT];
 };

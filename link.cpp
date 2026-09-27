@@ -97,6 +97,7 @@ bool EspNowLink::sendPanel(const LightPanel& panel, uint8_t changedId) {
   for (uint8_t i = 0; i < LIGHT_COUNT; i++) {
     // Every mode is 0..2, so it fits in the low two bits.
     pkt.mode[i] = (i < panel.count()) ? ((uint8_t)panel.mode(i) & 0x03) : 0;
+    pkt.seilwinde = (seilwindeState & 0x03); // Set the seilwinde value
   }
 
   if (!_started || !hasReceiver()) {

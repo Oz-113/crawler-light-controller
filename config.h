@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------- light grid --
 #define GRID_COLS              3
 #define GRID_ROWS              4
-#define LIGHT_COUNT            (GRID_COLS * GRID_ROWS)   // 12 lights
+#define LIGHT_COUNT            15   // 15 Outputs, other outputs also labeled light 
 
 // ------------------------------------------------------------ boot animation --
 #define SPLASH_FILE            "/LF-RC.raw"   // lives in LittleFS (the data/ folder)
@@ -35,6 +35,9 @@
 #define CAL_PREFS_NAMESPACE    "lfrc"         // NVS namespace for the calibration data
 #define CAL_PREFS_KEY          "touchcal"
 #define CAL_DATA_VERSION       1              // bump this to force a fresh calibration
+
+#define SEILWINDE_INPUT_1  5             // GPIO pin for Seilwinde input 1
+#define SEILWINDE_INPUT_2  6             // GPIO pin for Seilwinde input 2
 
 // ------------------------------------------------------------------ esp-now ----
 #define ESPNOW_CHANNEL         1              // both ESP32 must sit on the same channel

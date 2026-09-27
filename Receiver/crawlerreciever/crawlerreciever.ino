@@ -17,7 +17,7 @@ struct LightCommandPacket {
   uint8_t protocol;   // LINK_PROTOCOL_ID
   uint8_t count;      // number of valid mode[] entries
   uint8_t changed;    // light id that was touched, 0xFF = full refresh
-  bool seilwinde;   // 0 = off, 1 = on
+  uint8_t seilwinde;   // 0 off 1 right 2 left
   uint8_t reserved;   // 0
   uint8_t mode[LIGHT_COUNT];
 };
@@ -90,11 +90,11 @@ void lightOutputSet(uint8_t id, uint8_t mode) {
   s_lightMode[id] = mode;
 
   switch (id) {
-    case 12: // Seilwinde output
+    case 12 ... 13: // Seilwinde output
       digitalWrite(gpio[id], mode);
       digitalWrite(gpio[id + 1], !mode); // also set the second output for Seilwinde
       break;
-    case 13: // Servo output
+    case 14: // Servo output
       if (mode == MODE_FULL) {
         myServo.write(SERVO_OFFEN); // Move servo to 90 degrees
       } else {

@@ -32,6 +32,8 @@
 
 TFT_eSPI tft = TFT_eSPI();
 
+uint8_t seilwindeState = 0; // 0 = off, 1 = right, 2 = left
+
 LightPanel       panel;
 Ui               ui;
 // Note: not "link" - that name is taken by the POSIX link() in <unistd.h>.
@@ -59,6 +61,9 @@ void setup() {
   Serial.println(F("=== LF-RC wireless light controller (sender) ==="));
 
   panel.begin(LIGHT_COUNT);
+
+  pinMode(SEILWINDE_INPUT_1, INPUT_PULLUP);
+  pinMode(SEILWINDE_INPUT_2, INPUT_PULLUP);
 
   // ---- display ----
   tft.init();
@@ -99,6 +104,19 @@ void setup() {
 // ----------------------------------------------------------------- loop ------
 void loop() {
   handleTouch();
+  if(digitalRead(SEILWINDE_INPUT_1) == LOW){
+    Serial.println("Seilwinde Input 1 activated");
+seilwindeState = 1; // Set state to right
+  } else if(digitalRead(SEILWINDE_INPUT_2) == LOW){
+    Serial.println("Seilwinde Input 2 activated");
+    seilwindeState = 2; // Set state to left
+  } else {
+    seilwindeState = 0; // Set state to off
+    
+  }
+  
+  }
+
   delay(5);
 }
 
