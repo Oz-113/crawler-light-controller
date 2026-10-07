@@ -2,8 +2,13 @@
  * crawlerreciever - LF-RC light receiver
  *
  * Receives the LightCommandPacket of the sender (crawlerlichtanlage) over
- * ESP-NOW and hands one mode per light to the light outputs from loop().
- * config.h holds channel, protocol id, sender MAC and the light count.
+ * ESP-NOW and drives the light outputs, the winch H bridge and the servo.
+ * config.h holds the channel, protocol id, sender MAC, the pin map and the
+ * light count.
+ *
+ * Light 1 (id LIGHT_DIMMER_ID) is dimmable and uses LEDC PWM, so the "half"
+ * mode really is ~50 %. All other lights are plain on / off. The winch is a
+ * two-pin H bridge that is only ever driven with one input HIGH at a time.
  */
 
 #include "config.h"
@@ -17,31 +22,23 @@ struct LightCommandPacket {
   uint8_t protocol;   // LINK_PROTOCOL_ID
   uint8_t count;      // number of valid mode[] entries
   uint8_t changed;    // light id that was touched, 0xFF = full refresh
-  uint8_t seilwinde;   // 0 off 1 right 2 left
-  uint8_t servoangle;   // 0-180 degrees
+  uint8_t seilwinde;  // 0 stop, 1 forward, 2 reverse
+  uint8_t servoangle; // 0-180 degrees
   uint8_t reserved;   // 0
   uint8_t mode[LIGHT_COUNT];
 };
-const int gpio[LIGHT_COUNT] = 
-{
-  LIGHT_OUTPUT_1, LIGHT_OUTPUT_2, LIGHT_OUTPUT_3, LIGHT_OUTPUT_4,
-  LIGHT_OUTPUT_5, LIGHT_OUTPUT_6, LIGHT_OUTPUT_7, LIGHT_OUTPUT_8,
-  LIGHT_OUTPUT_9, LIGHT_OUTPUT_10, LIGHT_OUTPUT_11, LIGHT_OUTPUT_12,
-  
-  SEILWINDE_OUTPUT_13,
-  SEILWINDE_OUTPUT_14, 
-  
-  SERVO_OUTPUT_15
-  
-  
-}
-
-    // Servo control
-    static Servo myServo;
-    myServo.attach(gpio[id]);
-
-static_assert(sizeof(LightCommandPacket) == 4 + LIGHT_COUNT,
+// 6 header bytes + one mode byte per light, no padding (all members are uint8_t).
+static_assert(sizeof(LightCommandPacket) == 6 + LIGHT_COUNT,
               "LightCommandPacket has to stay identical to the sender");
+
+static const int lightGpio[LIGHT_COUNT] = {
+  LIGHT_OUTPUT_1,  LIGHT_OUTPUT_2,  LIGHT_OUTPUT_3,  LIGHT_OUTPUT_4,
+  LIGHT_OUTPUT_5,  LIGHT_OUTPUT_6,  LIGHT_OUTPUT_7,  LIGHT_OUTPUT_8,
+  LIGHT_OUTPUT_9,  LIGHT_OUTPUT_10, LIGHT_OUTPUT_11, LIGHT_OUTPUT_12
+};
+
+static Servo   s_servo;
+static uint8_t s_servoAngle = SERVO_GESCHLOSSEN;
 
 static uint8_t s_senderMac[6] = SENDER_MAC;
 
@@ -77,41 +74,86 @@ class EspNowReceiver {
 
 static uint8_t s_lightMode[LIGHT_COUNT];
 
+// Explicit prototypes (don't rely on the Arduino auto-prototype generator).
+void lightOutputBegin(uint8_t count);
+void lightOutputSet(uint8_t id, uint8_t mode);
+void winchSet(uint8_t dir);
+void servoSet(uint8_t angle);
+void lightOutputsOff();
+
 void lightOutputBegin(uint8_t count) {
+  (void)count;
   for (uint8_t i = 0; i < LIGHT_COUNT; i++) {
-    pinMode(gpio[i], OUTPUT);
+    if (i == LIGHT_DIMMER_ID) {
+      // Pin based LEDC API (ESP32 core 3.x) - it allocates a free channel itself
+      // and does not clash with the timer/channel ESP32Servo uses internally.
+      ledcAttach(lightGpio[i], LIGHT_PWM_FREQ, LIGHT_PWM_RESOLUTION);
+    } else {
+      pinMode(lightGpio[i], OUTPUT);
+    }
     s_lightMode[i] = MODE_OFF;
-    digitalWrite(gpio[i], MODE_OFF);
+    lightOutputSet(i, MODE_OFF);
   }
-    Serial.printf("lightOutputBegin(%u) is still the stub\n", (unsigned)count);
+
+  // Winch H bridge: both inputs low = coasting / stop.
+  pinMode(WINCH_OUTPUT_A, OUTPUT);
+  pinMode(WINCH_OUTPUT_B, OUTPUT);
+  digitalWrite(WINCH_OUTPUT_A, LOW);
+  digitalWrite(WINCH_OUTPUT_B, LOW);
+
+  s_servo.attach(SERVO_OUTPUT);
+  s_servo.write(SERVO_GESCHLOSSEN);
+  s_servoAngle = SERVO_GESCHLOSSEN;
+
+  Serial.printf("lightOutputBegin(%u): %u lights + winch + servo\n",
+                (unsigned)count, (unsigned)LIGHT_COUNT);
 }
 
 void lightOutputSet(uint8_t id, uint8_t mode) {
   if (id >= LIGHT_COUNT) return;
+  if (mode > MODE_FULL) mode = MODE_OFF;
   s_lightMode[id] = mode;
 
-  switch (id) {
-    case 12 ... 13: // Seilwinde output
-      digitalWrite(gpio[id], mode);
-      digitalWrite(gpio[id + 1], !mode); // also set the second output for Seilwinde
-      break;
-    case 14: // Servo output
-      if (mode == MODE_FULL) {
-        myServo.write(SERVO_OFFEN); // Move servo to 90 degrees
-      } else {
-        myServo.write(SERVO_GESCHLOSSEN); // Move servo to 0 degrees
-      }
-      break;
-    default:
-      digitalWrite(gpio[id], mode);
-      break;
-    break;
+  if (id == LIGHT_DIMMER_ID) {
+    // dimmable output: 0 % / 50 % / 100 %
+    uint32_t duty = 0;
+    if (mode == MODE_HALF)      duty = LIGHT_PWM_MAX / 2;
+    else if (mode == MODE_FULL) duty = LIGHT_PWM_MAX;
+    ledcWrite(lightGpio[id], duty);
+    return;
   }
 
+  digitalWrite(lightGpio[id], (mode == MODE_OFF) ? LOW : HIGH);
+}
+
+// Winch H bridge: never drive both inputs high at the same time.
+void winchSet(uint8_t dir) {
+  switch (dir) {
+    case WINCH_FORWARD:
+      digitalWrite(WINCH_OUTPUT_A, HIGH);
+      digitalWrite(WINCH_OUTPUT_B, LOW);
+      break;
+    case WINCH_REVERSE:
+      digitalWrite(WINCH_OUTPUT_A, LOW);
+      digitalWrite(WINCH_OUTPUT_B, HIGH);
+      break;
+    case WINCH_STOP:
+    default:
+      digitalWrite(WINCH_OUTPUT_A, LOW);
+      digitalWrite(WINCH_OUTPUT_B, LOW);
+      break;
+  }
+}
+
+void servoSet(uint8_t angle) {
+  if (angle > 180) angle = 180;
+  s_servoAngle = angle;
+  s_servo.write(angle);
 }
 
 void lightOutputsOff() {
   for (uint8_t i = 0; i < LIGHT_COUNT; i++) lightOutputSet(i, MODE_OFF);
+  winchSet(WINCH_STOP);    // safety: never leave the winch running unattended
 }
 
 // ------------------------------------------------------------- esp-now -------
@@ -257,6 +299,8 @@ void setup() {
 
 // ----------------------------------------------------------------- loop ------
 
+static uint8_t s_winch = WINCH_STOP;
+
 void loop() {
   LightCommandPacket pkt;
   uint8_t changed = 0xFF;
@@ -271,6 +315,10 @@ void loop() {
       lightOutputSet(i, mode);
     }
 
+    s_winch = pkt.seilwinde & 0x03;
+    winchSet(s_winch);
+    servoSet(pkt.servoangle);
+
     s_linkLost = false;
 
     if (changed < LIGHT_COUNT) {
@@ -279,7 +327,9 @@ void loop() {
                     (unsigned)(changed + 1),
                     (unsigned)(pkt.mode[changed] & 0x03));
     } else {
-      Serial.printf("rx %u: full refresh\n", (unsigned)receiver.packetsReceived());
+      Serial.printf("rx %u: full refresh (winch %u, servo %u)\n",
+                    (unsigned)receiver.packetsReceived(),
+                    (unsigned)s_winch, (unsigned)pkt.servoangle);
     }
   } else if (!s_linkLost && receiver.lastPacketMs() != 0 &&
              (millis() - receiver.lastPacketMs()) > LINK_TIMEOUT_MS) {

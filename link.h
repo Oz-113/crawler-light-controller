@@ -12,12 +12,19 @@
 #include "config.h"
 #include "lights.h"
 
+// The current winch / H-bridge command is owned by the sketch (loop()) and read
+// here while a packet is built: 0 stop, 1 forward, 2 reverse.
+extern uint8_t seilwindeState;
+
 // Wire format (keep in sync with the receiver sketch, this struct is the contract):
-//   byte 0: protocol  = LINK_PROTOCOL_ID
-//   byte 1: count     = number of valid entries in mode[]
-//   byte 2: changed   = light id that was touched, 0xFF = complete refresh
-//   byte 3: reserved  = 0
-//   byte 4..4+LIGHT_COUNT-1: mode[i], 2 bit value per light (0 off, 1 half, 2 full)
+//   byte 0: protocol   = LINK_PROTOCOL_ID
+//   byte 1: count      = number of valid entries in mode[]
+//   byte 2: changed    = light id that was touched, 0xFF = complete refresh
+//   byte 3: seilwinde  = winch direction (0 stop, 1 forward, 2 reverse)
+//   byte 4: servoangle = servo target in degrees (0..180)
+//   byte 5: reserved   = 0
+//   byte 6..6+LIGHT_COUNT-1: mode[i], 2 bit value per light (0 off, 1 half, 2 full)
+// The receiver mirrors this layout and static_asserts 6 + LIGHT_COUNT bytes.
 struct LightCommandPacket {
   uint8_t protocol;
   uint8_t count;

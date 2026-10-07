@@ -10,10 +10,19 @@
  *      start (or a changed rotation) asks for the four calibration arrows.
  *   3. The screen is split into GRID_COLS x GRID_ROWS keys, one per light.
  *
- * Touch
- *   short tap on a key : off -> half bright -> full bright -> off, the new
- *                        state is repainted and sent over ESP-NOW
- *   hold a key 3 s     : repeat the touch calibration (saved to flash again)
+ * Touch (one key per light, the number drawn on a key is its id + 1)
+ *   field 1  (id 0)  : tap toggles full <-> off, holding >= DIMMER_HALF_MS dims
+ *                      to 50 %, any press while at 50 % switches it off again
+ *   field 2  (id 1)  : Taster - on while the finger is down, off on release
+ *   fields 3-11      : Schalter - each tap toggles the light on / off
+ *   field 12 (id 11) : Schalter for light 12, which also moves the servo
+ *   hold a key 3 s   : repeat the touch calibration (saved to flash again)
+ *
+ * Winch (Seilwinde)
+ *   The two physical inputs drive the H bridge on the receiver; the direction is
+ *   sent on every change and a stop command is sent as soon as both are
+ *   released. The whole panel is re-sent as a heartbeat so the receiver does not
+ *   time out and switch the lights off while nothing is touched.
  *
  * Files: config.h, lights.*, ui.*, link.*, touchcal.*, splash.*  (see README.md)
  */
@@ -22,7 +31,6 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <TFT_eSPI.h>
-uint8_t seilwindeState = 0; // 0 = off, 1 = right, 2 = left
 
 #include "config.h"
 #include "lights.h"
@@ -33,6 +41,9 @@ uint8_t seilwindeState = 0; // 0 = off, 1 = right, 2 = left
 
 TFT_eSPI tft = TFT_eSPI();
 
+// Current winch / H-bridge command from the two physical inputs. link.cpp reads
+// it through the extern declaration in link.h.
+uint8_t seilwindeState = 0;   // 0 stop, 1 forward, 2 reverse
 
 LightPanel       panel;
 Ui               ui;
@@ -41,6 +52,13 @@ EspNowLink       lightLink;
 TouchCalibration touchCal;
 SplashScreen     splash(&tft);
 
+// ------------------------------------------------------------ key behaviour ---
+enum FieldKind : uint8_t {
+  FIELD_DIMMER,     // field 1  (id 0)
+  FIELD_MOMENTARY,  // field 2  (id 1) - Taster
+  FIELD_SWITCH      // fields 3..12 (id 2..11) - Schalter
+};
+
 // ------------------------------------------------------------ touch states ---
 static bool     s_touching  = false;
 static uint32_t s_pressMs   = 0;
@@ -48,10 +66,14 @@ static int8_t   s_pressCell = -1;
 // Set after a calibration so the finger that is still on the glass is swallowed
 // instead of being turned into a light command.
 static bool     s_ignoreUntilRelease = false;
+static uint32_t s_lastSendMs = 0;
 
 // ------------------------------------------------------------ prototypes -----
 static void handleTouch();
-static void onLightTouched(uint8_t id);
+static void processRelease(uint8_t id, uint32_t heldMs);
+static void applyMode(uint8_t id, LightMode mode);
+static FieldKind fieldKindOf(uint8_t id);
+static uint8_t readSeilwinde();
 
 // ---------------------------------------------------------------- setup ------
 void setup() {
@@ -98,34 +120,44 @@ void setup() {
   lightLink.begin();
   Serial.print(F("Local MAC: "));
   Serial.println(WiFi.macAddress());
-  Serial.println(F("Ready - tap a key to cycle off / half / full"));
+  Serial.println(F("Ready - 1 dimmer, 2 taster, 3-11 switch, 12 switch + servo"));
+
+  seilwindeState = readSeilwinde();
+  s_lastSendMs = millis();
 }
 
 // ----------------------------------------------------------------- loop ------
 void loop() {
   handleTouch();
-  if(digitalRead(SEILWINDE_INPUT_1) == LOW){
-    Serial.println("Seilwinde Input 1 activated");
-seilwindeState = 1; // Set state to right
-  } else if(digitalRead(SEILWINDE_INPUT_2) == LOW){
-    Serial.println("Seilwinde Input 2 activated");
-    seilwindeState = 2; // Set state to left
-  } else {
-    seilwindeState = 0; // Set state to off
-    
 
+  // The two physical inputs drive the H bridge: send right away when the
+  // direction changes and go back to "stop" as soon as neither is pressed.
+  uint8_t winch = readSeilwinde();
+  if (winch != seilwindeState) {
+    seilwindeState = winch;
+    Serial.printf("Seilwinde -> %u\n", (unsigned)seilwindeState);
+    lightLink.sendPanel(panel, 0xFF);
+    s_lastSendMs = millis();
   }
 
-  
+  // Heartbeat: keep the receiver alive (its LINK_TIMEOUT_MS) while idle.
+  if (millis() - s_lastSendMs >= LINK_HEARTBEAT_MS) {
+    lightLink.sendPanel(panel, 0xFF);
+    s_lastSendMs = millis();
   }
 
   delay(5);
 }
 
-// -------------------------------------------------------- boot animation -----
-// Moved into the SplashScreen module (splash.h/.cpp): mounting of the frame file
-// system, the streaming of /LF-RC.raw and the replacement screen when the frame
-// is missing.
+// Read the two winch inputs. A depressed input is pulled to GND (INPUT_PULLUP),
+// so LOW == pressed. Both pressed (or neither) is treated as a stop, which is
+// the only safe state for an H bridge.
+static uint8_t readSeilwinde() {
+  bool in1 = digitalRead(SEILWINDE_INPUT_1) == LOW;
+  bool in2 = digitalRead(SEILWINDE_INPUT_2) == LOW;
+  if (in1 == in2) return 0;
+  return in1 ? 1 : 2;
+}
 
 // --------------------------------------------------------- touch handling ----
 static void handleTouch() {
@@ -139,9 +171,15 @@ static void handleTouch() {
     s_touching  = true;
     s_pressMs   = now;
     s_pressCell = s_ignoreUntilRelease ? -1 : ui.cellAt((int16_t)x, (int16_t)y);
+
+    // field 2 is a Taster: it switches on the moment the finger is down
+    if (!s_ignoreUntilRelease && s_pressCell >= 0 &&
+        fieldKindOf((uint8_t)s_pressCell) == FIELD_MOMENTARY) {
+      applyMode((uint8_t)s_pressCell, LIGHT_FULL);
+    }
   } else if (!down && s_touching) {
     // finger released - decide what the gesture meant
-    s_touching        = false;
+    s_touching = false;
     uint32_t held     = now - s_pressMs;
     int8_t   released = s_pressCell;
     s_pressCell       = -1;
@@ -150,61 +188,58 @@ static void handleTouch() {
       s_ignoreUntilRelease = false;     // leftover touch from the calibration
       return;
     }
+    if (released < 0) return;
 
-    if (held >= TOUCH_LONGPRESS_MS) {
-
-      Serial.println("longpress");
-    if(released==0){
-        if(panel.mode(released) == 2){
-      LightMode mode = panel.cycle(released);
-      
-      Serial.println("panelmode was 2");
-      }else{
-     LightMode mode = panel.cycle(released);
-     mode = panel.cycle(released);
-     
-      Serial.println("panelmode was 0");
-      }
-      ui.drawCell(released);
-
-  bool queued = lightLink.sendPanel(panel, released);
-    
-    }else{
-      Serial.println(F("Long press - recalibrating the touch screen"));
-      touchCal.run(tft);
-      s_ignoreUntilRelease = true;
-      tft.fillScreen(COL_BACKGROUND);
-      ui.drawAll();
-      }
-    } 
-    
-    else if (held >= TOUCH_SETTLE_MS && released >= 0) {
-      onLightTouched((uint8_t)released);
-    
+    // field 2 (Taster) always returns to its original (off) state on release
+    if (fieldKindOf((uint8_t)released) == FIELD_MOMENTARY) {
+      applyMode((uint8_t)released, LIGHT_OFF);
+      return;
     }
+
+    if (held < TOUCH_SETTLE_MS) return;  // debounce very short contacts
+    processRelease((uint8_t)released, held);
   }
 }
 
-// A key was tapped: cycle its mode, repaint it and tell the other ESP32.
-static void onLightTouched(uint8_t id) {
-  if(id==0){
-    if(panel.mode(id) == 1){
-      LightMode mode = panel.cycle(id);
-     mode = panel.cycle(id); 
-      }else{
-     LightMode mode = panel.cycle(id);
-     
-     
-      }
-      
-    }else{
-     LightMode mode = panel.cycle(id);
-    }
-  ui.drawCell(id);
+static FieldKind fieldKindOf(uint8_t id) {
+  if (id == FIELD_DIMMER_ID)    return FIELD_DIMMER;
+  if (id == FIELD_MOMENTARY_ID) return FIELD_MOMENTARY;
+  return FIELD_SWITCH;
+}
 
-  bool queued = lightLink.sendPanel(panel, id);
- /* Serial.printf("Light %u -> mode %u (%s)\n",
-                (unsigned)(id + 1), (unsigned)mode,
-                queued ? "packet queued" : "no receiver configured");
-*/
+// Repaint one key and tell the receiver about the new panel state.
+static void applyMode(uint8_t id, LightMode mode) {
+  panel.setMode(id, mode);
+  ui.drawCell(id);
+  lightLink.sendPanel(panel, id);
+  s_lastSendMs = millis();
+}
+
+static void processRelease(uint8_t id, uint32_t heldMs) {
+  if (fieldKindOf(id) == FIELD_DIMMER) {
+    // tap: off <-> full ; hold: -> half ; any press while half -> off
+    LightMode cur = panel.mode(id);
+    LightMode next;
+    if (cur == LIGHT_HALF) {
+      next = LIGHT_OFF;
+    } else if (heldMs >= DIMMER_HALF_MS) {
+      next = LIGHT_HALF;
+    } else {
+      next = (cur == LIGHT_OFF) ? LIGHT_FULL : LIGHT_OFF;
+    }
+    applyMode(id, next);
+    return;
+  }
+
+  // FIELD_SWITCH (fields 3..12): a long hold recalibrates, a tap toggles.
+  if (heldMs >= TOUCH_CALIB_HOLD_MS) {
+    Serial.println(F("Long press - recalibrating the touch screen"));
+    touchCal.run(tft);
+    s_ignoreUntilRelease = true;
+    tft.fillScreen(COL_BACKGROUND);
+    ui.drawAll();
+    s_lastSendMs = millis();
+    return;
+  }
+  applyMode(id, (panel.mode(id) == LIGHT_OFF) ? LIGHT_FULL : LIGHT_OFF);
 }

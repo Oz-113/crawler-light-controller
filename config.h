@@ -21,7 +21,22 @@
 // ---------------------------------------------------------------- light grid --
 #define GRID_COLS              3
 #define GRID_ROWS              4
-#define LIGHT_COUNT            15   // 15 Outputs, other outputs also labeled light 
+#define LIGHT_COUNT            12   // one key per light (3 x 4 = 12 keys)
+
+// --------------------------------------------------------- key behaviour ------
+// The number drawn on a key is its id + 1, laid out left to right, top to bottom.
+#define FIELD_DIMMER_ID        0    // field 1  : tap = full/off, long press = 50 %
+#define FIELD_MOMENTARY_ID     1    // field 2  : Taster - on while held, off on release
+#define FIELD_SERVO_ID         11   // field 12 : Schalter - toggles light 12 AND the servo
+
+// Servo positions sent when field 12 toggles (keep in sync with the receiver's
+// SERVO_OFFEN / SERVO_GESCHLOSSEN).
+#define SERVO_ANGLE_OFF        0
+#define SERVO_ANGLE_ON         90
+
+// The sender re-sends the whole panel at least this often so the receiver does
+// not hit LINK_TIMEOUT_MS and switch the lights off between touches.
+#define LINK_HEARTBEAT_MS      500UL
 
 // ------------------------------------------------------------ boot animation --
 #define SPLASH_FILE            "/LF-RC.raw"   // lives in LittleFS (the data/ folder)
@@ -30,7 +45,8 @@
 
 // -------------------------------------------------------------- touch / cal ----
 #define TOUCH_THRESHOLD        600            // XPT2046 z (pressure) threshold
-#define TOUCH_LONGPRESS_MS     1000UL         // hold longer than this -> touch calibration
+#define DIMMER_HALF_MS         800UL          // field 1: hold longer than this -> 50 %
+#define TOUCH_CALIB_HOLD_MS    3000UL         // hold a switch key this long -> touch calibration
 #define TOUCH_SETTLE_MS        60             // ignore contacts shorter than this (debounce)
 #define CAL_PREFS_NAMESPACE    "lfrc"         // NVS namespace for the calibration data
 #define CAL_PREFS_KEY          "touchcal"

@@ -90,14 +90,17 @@ bool EspNowLink::hasReceiver() const {
 
 bool EspNowLink::sendPanel(const LightPanel& panel, uint8_t changedId) {
   LightCommandPacket pkt;
-  pkt.protocol = LINK_PROTOCOL_ID;
-  pkt.count    = panel.count();
-  pkt.changed  = changedId;
-  pkt.reserved = 0;
+  pkt.protocol   = LINK_PROTOCOL_ID;
+  pkt.count      = panel.count();
+  pkt.changed    = changedId;
+  pkt.seilwinde  = (seilwindeState & 0x03);   // 0 stop, 1 forward, 2 reverse
+  pkt.reserved   = 0;
+  // Field 12 (light id FIELD_SERVO_ID) switches light 12 and the servo together.
+  pkt.servoangle = (panel.mode(FIELD_SERVO_ID) == LIGHT_OFF) ? SERVO_ANGLE_OFF
+                                                             : SERVO_ANGLE_ON;
   for (uint8_t i = 0; i < LIGHT_COUNT; i++) {
     // Every mode is 0..2, so it fits in the low two bits.
     pkt.mode[i] = (i < panel.count()) ? ((uint8_t)panel.mode(i) & 0x03) : 0;
-    pkt.seilwinde = (seilwindeState & 0x03); // Set the seilwinde value
   }
 
   if (!_started || !hasReceiver()) {

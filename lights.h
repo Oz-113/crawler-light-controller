@@ -15,13 +15,7 @@ enum LightMode : uint8_t {
   LIGHT_HALF = 1,   // 0b01
   LIGHT_FULL = 2    // 0b10
 };
-enum LightModeBIN : uint8_t {
-  LIGHT_BIN_OFF  = 0,   // 0b00
-  LIGHT_BIN_FULL = 1    // 0b10
-};
-
 static const uint8_t LIGHT_MODE_COUNT = 3;
-static const uint8_t LIGHT_MODE_BIN_COUNT = 2;
 
 
 struct Light {
