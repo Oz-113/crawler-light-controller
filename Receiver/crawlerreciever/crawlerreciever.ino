@@ -18,6 +18,7 @@ struct LightCommandPacket {
   uint8_t count;      // number of valid mode[] entries
   uint8_t changed;    // light id that was touched, 0xFF = full refresh
   uint8_t seilwinde;   // 0 off 1 right 2 left
+  uint8_t servoangle;   // 0-180 degrees
   uint8_t reserved;   // 0
   uint8_t mode[LIGHT_COUNT];
 };
