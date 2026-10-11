@@ -62,7 +62,7 @@
 // !!! FILL IN THE MAC ADDRESS OF THE RECEIVER ESP32 !!!
 // While it stays all zero the link only logs what it *would* send; the UI and the
 // local light states keep working, so the controller can be tested on its own.
-#define RECEIVER_MAC           { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
+#define RECEIVER_MAC           { 0x44, 0xB1, 0x76, 0xCD, 0x60, 0xF0 }
 
 // ------------------------------------------------------------------ colours ----
 // 16 bit RGB565 values. 0x0000 black, 0x8410 mid grey, ...
