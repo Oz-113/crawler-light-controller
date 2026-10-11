@@ -23,7 +23,7 @@
 #define SERVO_OFFEN            90             // Servo open position
 #define SERVO_GESCHLOSSEN      0              // Servo closed position
 
-#define SENDER_MAC           { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
+#define SENDER_MAC           { 0xDC, 0xDA, 0x0C, 0x6E, 0x08, 0xB4 }
 
 #define LIGHT_OUTPUT_1         4             // GPIO pin for light 1
 #define LIGHT_OUTPUT_2         5             // GPIO pin for light 2

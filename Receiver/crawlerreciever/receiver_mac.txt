@@ -1,0 +1,6 @@
+Interface						MAC address (6/8 bytes, 4 universally administered, default)␍
+Wi-Fi Station (using 'esp_efuse_mac_get_default')	DC:DA:0C:6E:08:B4␍
+WiFi Station (using 'esp_read_mac')			DC:DA:0C:6E:08:B4␍
+WiFi Soft-AP (using 'esp_read_mac')			DE:DA:0C:6E:08:B4␍
+Bluetooth (using 'esp_read_mac')			DC:DA:0C:6E:08:B5␍
+Ethernet (using 'esp_read_mac')				DE:DA:0C:6E:08:B5␍
