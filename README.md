@@ -39,6 +39,7 @@ sends the new state to a second ESP32 over **ESP-NOW**.
 | `splash.h/.cpp` | mounts the frame file system (LittleFS → SPIFFS, never formats) and shows `/LF-RC.raw` |
 | `img_to_565.py` | converts `source_frames/*` to RGB565 `.raw` files in `data/` |
 | `data/LF-RC.raw` | 320x240x2 = 153.600 bytes intro frame |
+| `TFT_eSPI_GUIDE.md` | every TFT_eSPI setting of this project: active setup file, pin map, SPI clock, the S3 patch and the rules for swapping the panel |
 
 ## The intro frame does not show up?
 
@@ -73,8 +74,9 @@ The UI never hard codes a pixel value: every rectangle comes from
 TFT_eSPI how large a two digit label renders, so a different panel only needs
 
 1. the matching TFT_eSPI setup in `libraries/TFT_eSPI/User_Setup_Select.h`
-   (currently `User_Setups/Setup42_ILI9341_ESP32.h`, ILI9341 on VSPI:
-   MOSI 23, SCLK 18, CS 15, DC 2, RST 4, MISO 19, TOUCH_CS 21),
+   (currently `User_Setups/Setup70g_ESP32_S3_ILI9341_LF_RC.h`: ESP32-S3 DevKitC,
+   ILI9341, CS 10, MOSI 11, SCLK 12, MISO 13, DC 4, RST 5, TOUCH_CS 7 -
+   all of it, plus the S3 library patch, is listed in `TFT_eSPI_GUIDE.md`),
 2. `target_size` in `img_to_565.py` set to the new panel size plus
    re-running it (and uploading the `data/` folder again),
 3. `SCREEN_ROTATION` in `config.h` if the new panel is mounted differently
@@ -109,7 +111,38 @@ itself with the next one). Both boards have to use the same Wi-Fi channel,
 
 ## Build / upload
 
-* Board: `ESP32 Dev Module` (esp32 core 3.x).
+* Board: whatever the hardware really is - `ESP32 Dev Module` for a classic
+  ESP32, `ESP32S3 Dev Module` for an ESP32-S3 (an S3 exposes the boot ROM
+  message `ESP-ROM:esp32s3-...` in the serial monitor).
+* **ESP32-S3 + esp32 core 3.x: TFT_eSPI 2.5.43 must be patched (one line)**,
+  otherwise the sketch dies directly after the banner:
+
+  ```
+  Guru Meditation Error: Core 1 panic'ed (StoreProhibited)
+  EXCVADDR: 0x00000010   A9: 0x08000000
+  ```
+
+  `Processors/TFT_eSPI_ESP32_S3.h` of 2.5.43 says `#define SPI_PORT FSPI`, but
+  esp32 core 3.x defines `FSPI` as the *bus index* 0 while the ESP-IDF register
+  macros want the GPSPI *number* (`soc/soc.h`: `REG_SPI_BASE(i)` is 0 for
+  `i < 2`). `SPI_USER_REG(0)` therefore collapsed to the bare constant `0x10`,
+  and the first `tft.init()` stored `SPI_USR_MOSI` (`0x08000000`) to address
+  `0x10`. Fix:
+
+  ```c
+  #elif defined(CONFIG_IDF_TARGET_ESP32S3)
+    #define SPI_PORT 2   // GPSPI2 - the bus the core's FSPI/SPI object drives
+  ```
+
+  which is exactly what TFT_eSPI master does today. Classic ESP32 boards use
+  the unchanged `SPI_PORT VSPI` branch and are not affected by this.
+* On an **ESP32-S3, GPIO22...25 do not exist** (the S3 only has 0..21 and
+  26..48). The old classic-ESP32 setup (`Setup42_ILI9341_ESP32.h`, MOSI 23)
+  therefore never worked on an S3; the active setup is now
+  `Setup70g_ESP32_S3_ILI9341_LF_RC.h` with CS 10, MOSI 11, SCLK 12, MISO 13,
+  DC 4, RST 5, TOUCH_CS 7 - and `config.h` emits a compile time message if one
+  of the TFT pins lands in 22...25 again. Everything about the TFT_eSPI side of
+  this project is collected in **`TFT_eSPI_GUIDE.md`**.
 * Flash the filesystem once so `/LF-RC.raw` exists (Arduino IDE 2 with the
   LittleFS data upload tool, or `arduino-cli upload ... --input-dir data`).
 * The sketch also works without LittleFS: it just skips the intro frame.

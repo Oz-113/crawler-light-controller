@@ -88,6 +88,16 @@ void setup() {
   pinMode(SEILWINDE_INPUT_2, INPUT_PULLUP);
 
   // ---- display ----
+  // The display pins live in the TFT_eSPI setup file (User_Setup_Select.h), not
+  // in config.h, so print them: that turns "screen stays black" into a plain
+  // wiring check. GPIO22...25 do not exist on an ESP32-S3 (config.h warns about
+  // that at compile time).
+  Serial.printf("TFT pins: MOSI %d, SCLK %d, MISO %d, CS %d, DC %d, RST %d",
+                TFT_MOSI, TFT_SCLK, TFT_MISO, TFT_CS, TFT_DC, TFT_RST);
+#if defined(TOUCH_CS)
+  Serial.printf(", TOUCH_CS %d", TOUCH_CS);
+#endif
+  Serial.println();
   tft.init();
   tft.setRotation(SCREEN_ROTATION);
   tft.setSwapBytes(false);              // /LF-RC.raw is little endian RGB565

@@ -18,6 +18,45 @@
 // is 240x320 in portrait, so landscape gives the 320x240 of /LF-RC.raw.
 #define SCREEN_ROTATION        1
 
+// ------------------------------------------------------------- display pins --
+// The TFT pins are defined by the TFT_eSPI setup file, not here - but they can
+// be checked against the pins this sketch uses itself. Currently active:
+// User_Setups/Setup70g_ESP32_S3_ILI9341_LF_RC.h (ESP32-S3 DevKitC + ILI9341):
+//   CS 10, MOSI 11, SCLK 12, MISO 13, DC 4, RST 5, TOUCH_CS 7
+#if defined(SEILWINDE_INPUT_1) && defined(TFT_MOSI)
+  #if (SEILWINDE_INPUT_1 == TFT_CS   || SEILWINDE_INPUT_1 == TFT_MOSI || \
+       SEILWINDE_INPUT_1 == TFT_SCLK || SEILWINDE_INPUT_1 == TFT_MISO || \
+       SEILWINDE_INPUT_1 == TFT_DC   || SEILWINDE_INPUT_1 == TFT_RST  || \
+       SEILWINDE_INPUT_1 == TOUCH_CS || SEILWINDE_INPUT_2 == TFT_CS   || \
+       SEILWINDE_INPUT_2 == TFT_MOSI || SEILWINDE_INPUT_2 == TFT_SCLK || \
+       SEILWINDE_INPUT_2 == TFT_MISO || SEILWINDE_INPUT_2 == TFT_DC   || \
+       SEILWINDE_INPUT_2 == TFT_RST  || SEILWINDE_INPUT_2 == TOUCH_CS)
+    #error "config.h: a SEILWINDE_INPUT_x pin is also used by the TFT_eSPI setup - pick a free pin"
+  #endif
+#endif
+
+// ------------------------------------------------------- board sanity check ---
+// GPIO22...25 do not exist on the ESP32-S3 (it only has 0..21 and 26..48), so a
+// TFT_eSPI setup written for a classic ESP32 - like Setup42 with MOSI 23 - can
+// never drive the panel on an S3. This warning appears at compile time, it does
+// not stop the build, it only makes the reason visible before flashing.
+// The ESP32 core is compiled with "-w" by default (that is what
+// compiler.warning_flags in platform.txt says), which swallows every #warning,
+// so the text is emitted as a #pragma message - that one survives -w.
+// Not flagged on purpose: GPIO19/20 (MISO = 19 here) are the S3 native USB
+// D-/D+ lines - fine while the board is programmed/monitored through a USB to
+// UART chip, but they clash with the internal USB PHY when the native USB port
+// is used, so MISO is better moved somewhere else on an S3.
+#define LF_RC_STR1(x) #x
+#define LF_RC_STR(x)  LF_RC_STR1(x)
+#if defined(CONFIG_IDF_TARGET_ESP32S3) && defined(TFT_MOSI)
+  #if ((TFT_MOSI >= 22 && TFT_MOSI <= 25) || (TFT_MISO >= 22 && TFT_MISO <= 25) || \
+       (TFT_SCLK >= 22 && TFT_SCLK <= 25) || (TFT_CS   >= 22 && TFT_CS   <= 25) || \
+       (TFT_DC   >= 22 && TFT_DC   <= 25) || (TFT_RST  >= 22 && TFT_RST  <= 25))
+    #pragma message("ESP32-S3: TFT pin in 22...25 (MOSI=" LF_RC_STR(TFT_MOSI) ", SCLK=" LF_RC_STR(TFT_SCLK) ", MISO=" LF_RC_STR(TFT_MISO) ", CS=" LF_RC_STR(TFT_CS) ", DC=" LF_RC_STR(TFT_DC) ", RST=" LF_RC_STR(TFT_RST) ") - these GPIOs do not exist on the ESP32-S3, pick an S3 setup (e.g. Setup70b) and re-check the wiring!")
+  #endif
+#endif
+
 // ---------------------------------------------------------------- light grid --
 #define GRID_COLS              3
 #define GRID_ROWS              4
@@ -52,8 +91,11 @@
 #define CAL_PREFS_KEY          "touchcal"
 #define CAL_DATA_VERSION       1              // bump this to force a fresh calibration
 
-#define SEILWINDE_INPUT_1  5             // GPIO pin for Seilwinde input 1
-#define SEILWINDE_INPUT_2  6             // GPIO pin for Seilwinde input 2
+// Seilwinde (winch) inputs. These must not collide with the display pins of
+// the TFT_eSPI setup (User_Setups/Setup70g_ESP32_S3_ILI9341_LF_RC.h uses
+// CS 10, MOSI 11, SCLK 12, MISO 13, DC 4, RST 5, TOUCH_CS 7), therefore:
+#define SEILWINDE_INPUT_1  6             // GPIO pin for Seilwinde input 1 (was 5)
+#define SEILWINDE_INPUT_2  8             // GPIO pin for Seilwinde input 2 (was 6)
 
 // ------------------------------------------------------------------ esp-now ----
 #define ESPNOW_CHANNEL         1              // both ESP32 must sit on the same channel
